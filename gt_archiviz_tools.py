@@ -1,8 +1,8 @@
 bl_info = {
 	"name": "GT Archviz Tools",
 	"author": "Glynn Taylor",
-	"version": (0, 1, 0),
-	"blender": (2, 7, 4),
+	"version": (0, 1, 1),
+	"blender": (2, 7, 8),
 	"api": 35853,
 	"location": "View > Tools > GT AV Tools",
 	"description": "A collection of tools for archviz optimisation",
