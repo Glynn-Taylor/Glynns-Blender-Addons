@@ -37,6 +37,7 @@ class LayoutDemoPanel(bpy.types.Panel):
 	bpy.types.Scene.scn_noiseDeviance = bpy.props.FloatProperty(name = "Noise Deviance",default=0.2)
 	bpy.types.Scene.scn_saturationAmount = bpy.props.FloatProperty(name = "Saturation",default=0.05)
 	bpy.types.Scene.scn_lightnessAmount = bpy.props.FloatProperty(name = "Lightness",default=0.05)
+	bpy.types.Scene.scn_snap = bpy.props.FloatProperty(name = "Snap",default=0.5)
 	
 	def draw(self, context):
 		layout = self.layout
@@ -76,7 +77,15 @@ class LayoutDemoPanel(bpy.types.Panel):
 		row3.scale_y = 1.0
 		row3.prop( scene, "scn_lightnessAmount", text="Amount" )
 		row3.operator("gt.multiply_ao")
-
+		
+		layout.row().separator()
+		#layout.seperator()
+		
+		box = layout.box()
+		box.label(text="Alignment")
+		box.prop( scene, "scn_snap", text="Snap" )
+		box.operator("gt.selected_arrange_to_grid")
+		box.operator("gt.selected_snap")
 #-------------------------------------------
 # GENERAL FUNCTIONS
 
@@ -87,6 +96,24 @@ def CheckVertexColorLayer(layerName, mesh):
 #-------------------------------------------
 # OPERATORS
 
+#---------------
+# Snap
+#
+def RunSnap(context):
+
+	for nr, obj in enumerate(bpy.context.selected_objects):
+		obj.location.x = round(obj.location.x / context.scene.scn_snap) * context.scene.scn_snap
+		obj.location.y = round(obj.location.y / context.scene.scn_snap) * context.scene.scn_snap
+
+def RunArrangeToGrid(context):
+	offset_y = 1
+	offset_z = 1
+	row_length = 5
+
+	for nr, obj in enumerate(bpy.context.selected_objects):
+		row = nr % row_length
+		col = nr // row_length
+		obj.location = (col * offset_z+0.5, row * offset_y+0.5, 0)		
 #---------------
 # Multi Layer
 #
@@ -306,6 +333,34 @@ def RunMultiplyAO(context):
 	bpy.ops.object.mode_set(mode=oldMode)
 	print("Finished Value")
 
+class ArrangeSelectedOperator(bpy.types.Operator):
+	"""Tooltip"""
+	bl_idname = "gt.selected_arrange_to_grid"
+	bl_label = "Arrange Selected To Grid"
+
+	@classmethod
+	def poll(cls, context):
+		return True
+
+	def execute(self, context):
+		RunArrangeToGrid(context)
+		return {'FINISHED'}
+
+	
+class SnapOperator(bpy.types.Operator):
+	"""Tooltip"""
+	bl_idname = "gt.selected_snap"
+	bl_label = "Snap Selected"
+
+	@classmethod
+	def poll(cls, context):
+		return True
+
+	def execute(self, context):
+		RunSnap(context)
+		return {'FINISHED'}
+
+	
 class CombineAOOperator(bpy.types.Operator):
 	"""Tooltip"""
 	bl_idname = "gt.combine_ao"
@@ -411,6 +466,8 @@ class ColorNoiseOperator(bpy.types.Operator):
 		return {'FINISHED'} 		
 
 def register():
+	bpy.utils.register_class(ArrangeSelectedOperator)
+	bpy.utils.register_class(SnapOperator)
 	bpy.utils.register_class(CombineAOOperator)
 	bpy.utils.register_class(MultiplyAOOperator)
 	bpy.utils.register_class(ColorNoiseOperator)
@@ -432,6 +489,8 @@ def unregister():
 	bpy.utils.unregister_class(ColorNoiseOperator)
 	bpy.utils.unregister_class(MultiplyAOOperator)
 	bpy.utils.unregister_class(CombineAOOperator)
+	bpy.utils.unregister_class(SnapOperator)
+	bpy.utils.unregister_class(ArrangeSelectedOperator)
 
 if __name__ == "__main__":
 	register()
