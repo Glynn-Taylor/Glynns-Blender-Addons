@@ -17,9 +17,11 @@ from collections import defaultdict
 import random
 from mathutils import Color
 import colorsys
+import os
 
 #-------------------------------------------
 # PANEL
+
 
 class LayoutDemoPanel(bpy.types.Panel):
 	"""Creates a Panel in the scene context of the properties editor"""
@@ -28,16 +30,24 @@ class LayoutDemoPanel(bpy.types.Panel):
 	bl_space_type = 'VIEW_3D'
 	bl_region_type = 'TOOLS'
 	bl_category = "GT"
+	#bl_order = -1
 
 	#PROPERTIES
 	bpy.types.Scene.scn_targetVCLayer= bpy.props.StringProperty( attr="targetLayer1", name="Target VC Layer", description="Target VC Layer", default="Col" )
 	bpy.types.Scene.scn_inputVCLayer1= bpy.props.StringProperty( attr="inputLayer1", name="Input VC Layer", description="Input VC Layer", default="Col" )
 	bpy.types.Scene.scn_inputVCLayer2= bpy.props.StringProperty( attr="inputLayer2", name="Input VC Layer", description="Input VC Layer", default="Col" )
-	
+	bpy.types.Scene.scn_character_export_path = bpy.props.StringProperty (
+		name="Output Path",
+		default="",
+		description="Define the path where to export or import from",
+		subtype='DIR_PATH'
+	)
 	bpy.types.Scene.scn_noiseDeviance = bpy.props.FloatProperty(name = "Noise Deviance",default=0.2)
 	bpy.types.Scene.scn_saturationAmount = bpy.props.FloatProperty(name = "Saturation",default=0.05)
 	bpy.types.Scene.scn_lightnessAmount = bpy.props.FloatProperty(name = "Lightness",default=0.05)
 	bpy.types.Scene.scn_snap = bpy.props.FloatProperty(name = "Snap",default=0.5)
+	
+	
 	
 	def draw(self, context):
 		layout = self.layout
@@ -82,10 +92,17 @@ class LayoutDemoPanel(bpy.types.Panel):
 		#layout.seperator()
 		
 		box = layout.box()
-		box.label(text="Alignment")
-		box.prop( scene, "scn_snap", text="Snap" )
-		box.operator("gt.selected_arrange_to_grid")
-		box.operator("gt.selected_snap")
+		box.label(text="Character Export")
+		
+		row4 = box.row(align=True)
+		if context.scene.scn_character_export_path == "":
+			row4.alert = True
+		row4.prop(scene, "scn_character_export_path", text="Export path")
+		if context.scene.scn_character_export_path != "":
+			row4 = row4.row(align=True)
+			row4.operator("gt.open_folder", text="", icon='FILE_FOLDER')
+		#box.prop( scene, "scn_snap", text="Snap" )
+		box.operator("gt.export_character")
 #-------------------------------------------
 # GENERAL FUNCTIONS
 
@@ -96,6 +113,47 @@ def CheckVertexColorLayer(layerName, mesh):
 #-------------------------------------------
 # OPERATORS
 
+def RunExportCharacter( context):
+	#for obj in bpy.data.objects:
+	#	if obj.type == 'MESH' : 
+	#		bpy.ops.object.modifier_apply(apply_as='DATA', modifier='Mirror')
+	#bpy.ops.ed.undo_push()
+	path_folder = os.path.dirname( bpy.path.abspath( context.scene.scn_character_export_path))
+	#path_name, extension = os.path.splitext(bpy.data.filepath)
+	path_fullname = os.path.basename(bpy.data.filepath) # won't work on linux
+	path_name, extension = os.path.splitext(path_fullname)
+	print("Target Folder: "+path_folder)
+	print("Target Name: "+path_name)
+	path_full = os.path.join(path_folder, path_name)+".fbx"
+	print("Full Path: "+path_full)
+	try:
+		bpy.ops.export_scene.fbx(
+			filepath		=path_full, 
+			
+			axis_forward	='-Z', 
+			axis_up			='Y', 
+			object_types={'EMPTY', 'ARMATURE', 'MESH', 'OTHER'},
+			
+			use_mesh_modifiers=True,
+			add_leaf_bones=False,
+			bake_anim=False,
+			
+			apply_scale_options='FBX_SCALE_ALL',
+			global_scale =1.00, 
+			apply_unit_scale=True,
+			
+			path_mode='AUTO',
+			embed_textures=True, 
+			mesh_smooth_type='FACE',
+			batch_mode='OFF',
+			
+			use_custom_props=False,
+
+ 			bake_space_transform = True
+			)
+	except (TypeError, ValueError):
+		bpy.ops.export_scene.fbx('INVOKE_DEFAULT')
+	#bpy.ops.ed.undo()
 #---------------
 # Snap
 #
@@ -332,7 +390,53 @@ def RunMultiplyAO(context):
 	mesh.update()
 	bpy.ops.object.mode_set(mode=oldMode)
 	print("Finished Value")
+	
+def RunOpenFolder(self, path):
+	path = os.path.dirname( bpy.path.abspath( path ))
+	# Warnings
+	if not os.path.exists(path):
+		self.report({'ERROR_INVALID_INPUT'}, "Path doesn't exist." )
+		return
 
+	# Open Folder
+	os.startfile(path)
+	print("Open path on system "+path)
+	
+class OpenFolder(bpy.types.Operator):
+	bl_idname = "gt.open_folder"
+	bl_label = "Open Folder"
+	bl_description = "Open the specified folder"
+
+	@classmethod
+	def poll(cls, context):
+		if context.scene.scn_character_export_path == "":
+			return False
+
+		return True
+
+	def execute(self, context):
+		RunOpenFolder(self, context.scene.scn_character_export_path)
+		
+		return {'FINISHED'}
+
+
+
+class ExportCharacter(bpy.types.Operator):
+	"""Tooltip"""
+	bl_idname = "gt.export_character"
+	bl_label = "Export Character"
+	# bl_options = {'REGISTER', 'UNDO'}
+	# Can either use the blender auto undo (above) or manually add point using bpy.ops.ed.undo_push()
+	@classmethod
+	def poll(cls, context):
+		return True
+
+	def execute(self, context):
+		RunExportCharacter(context)
+		return {'FINISHED'}
+	
+	
+	
 class ArrangeSelectedOperator(bpy.types.Operator):
 	"""Tooltip"""
 	bl_idname = "gt.selected_arrange_to_grid"
@@ -466,6 +570,8 @@ class ColorNoiseOperator(bpy.types.Operator):
 		return {'FINISHED'} 		
 
 def register():
+	bpy.utils.register_class(OpenFolder)
+	bpy.utils.register_class(ExportCharacter)
 	bpy.utils.register_class(ArrangeSelectedOperator)
 	bpy.utils.register_class(SnapOperator)
 	bpy.utils.register_class(CombineAOOperator)
@@ -491,6 +597,8 @@ def unregister():
 	bpy.utils.unregister_class(CombineAOOperator)
 	bpy.utils.unregister_class(SnapOperator)
 	bpy.utils.unregister_class(ArrangeSelectedOperator)
+	bpy.utils.unregister_class(ExportCharacter)
+	bpy.utils.unregister_class(OpenFolder)
 
 if __name__ == "__main__":
 	register()
