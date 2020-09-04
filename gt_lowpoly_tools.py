@@ -103,6 +103,7 @@ class LayoutDemoPanel(bpy.types.Panel):
 			row4.operator("gt.open_folder", text="", icon='FILE_FOLDER')
 		#box.prop( scene, "scn_snap", text="Snap" )
 		box.operator("gt.export_character")
+		box.operator("gt.export_charactermerged")
 #-------------------------------------------
 # GENERAL FUNCTIONS
 
@@ -112,6 +113,63 @@ def CheckVertexColorLayer(layerName, mesh):
 
 #-------------------------------------------
 # OPERATORS
+
+def RunExportCharacterMerged(self, context):
+	#-----------------------------------------Save
+	if bpy.data.is_dirty:
+		bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
+		
+	objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+	#-----------------------------------------Apply modifiers
+	for obj in objs:
+		bpy.context.scene.objects.active = obj
+		for modifier in obj.modifiers:
+			if modifier.type != "ARMATURE":
+				bpy.ops.object.modifier_apply(modifier=modifier.name)
+	#-----------------------------------------Merge All
+	for obj in objs:
+		obj.select = True
+	for obj in objs:
+		if obj.name == "Body":
+			bpy.context.scene.objects.active = obj
+	bpy.ops.object.join()
+	#-----------------------------------------Export
+	path_folder = os.path.dirname( bpy.path.abspath( context.scene.scn_character_export_path))
+	
+	path_fullname = os.path.basename(bpy.data.filepath) # won't work on linux
+	path_name, extension = os.path.splitext(path_fullname)
+	print("Target Folder: "+path_folder)
+	print("Target Name: "+path_name)
+	path_full = os.path.join(path_folder, path_name)+".fbx"
+	print("Full Path: "+path_full)
+	try:
+		bpy.ops.export_scene.fbx(
+			filepath		=path_full, 
+			
+			axis_forward	='-Z', 
+			axis_up			='Y', 
+			object_types={'EMPTY', 'ARMATURE', 'MESH', 'OTHER'},
+			
+			use_mesh_modifiers=False,
+			add_leaf_bones=False,
+			bake_anim=False,
+			
+			apply_scale_options='FBX_SCALE_ALL',
+			global_scale =1.00, 
+			apply_unit_scale=True,
+		
+			path_mode='AUTO',
+			embed_textures=True, 
+			mesh_smooth_type='FACE',
+			batch_mode='OFF',
+			
+			use_custom_props=False,
+ 			bake_space_transform = True
+			)
+	except (TypeError, ValueError):
+		bpy.ops.export_scene.fbx('INVOKE_DEFAULT')
+	#-----------------------------------------Undo
+	bpy.ops.wm.open_mainfile(filepath=bpy.data.filepath)
 
 def RunExportCharacter( context):
 	#for obj in bpy.data.objects:
@@ -402,6 +460,21 @@ def RunOpenFolder(self, path):
 	os.startfile(path)
 	print("Open path on system "+path)
 	
+	
+class ExportCharacterMerged(bpy.types.Operator):
+	"""Tooltip"""
+	bl_idname = "gt.export_charactermerged"
+	bl_label = "Export Character Merged"
+	# bl_options = {'REGISTER', 'UNDO'}
+	# Can either use the blender auto undo (above) or manually add point using bpy.ops.ed.undo_push()
+	@classmethod
+	def poll(cls, context):
+		return True
+
+	def execute(self, context):
+		RunExportCharacterMerged(self,context)
+		return {'FINISHED'}
+	
 class OpenFolder(bpy.types.Operator):
 	bl_idname = "gt.open_folder"
 	bl_label = "Open Folder"
@@ -570,6 +643,7 @@ class ColorNoiseOperator(bpy.types.Operator):
 		return {'FINISHED'} 		
 
 def register():
+	bpy.utils.register_class(ExportCharacterMerged)
 	bpy.utils.register_class(OpenFolder)
 	bpy.utils.register_class(ExportCharacter)
 	bpy.utils.register_class(ArrangeSelectedOperator)
@@ -599,6 +673,7 @@ def unregister():
 	bpy.utils.unregister_class(ArrangeSelectedOperator)
 	bpy.utils.unregister_class(ExportCharacter)
 	bpy.utils.unregister_class(OpenFolder)
+	bpy.utils.unregister_class(ExportCharacterMerged)
 
 if __name__ == "__main__":
 	register()
